@@ -1,0 +1,171 @@
+---
+title: "Childcare Mapping"
+author: "Natalie Walker"
+date: "5/10/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+# Load in data
+library(pacman)
+p_load(readxl, sf, tidycensus, tidyr, dplyr, ggplot2, tidyverse, data.table, janitor, leaflet)
+
+hill = read_xlsx("~/Documents/childcare-mapping/data/Hillsboro\ Data.xlsx")
+alo = read_xlsx("~/Documents/childcare-mapping/data/Aloha\ Data.xlsx")
+corn = read_xlsx("~/Documents/childcare-mapping/data/Cornelius\ Data.xlsx")
+```
+
+```{r, include = FALSE}
+# combine data
+df = rbind(hill, alo, corn)
+cc = st_as_sf(df, 
+              coords = c(x = "Longitude", y = "Latitude"), 
+              crs = 4326)
+#plot(cc)
+cc = clean_names(cc)
+
+# convert to points
+cc2 = cc %>%
+  extract(geometry, c('lon','lat'), '\\((.*), (.*)\\)', convert = TRUE) %>%
+  select(lat, lon, provider_type) 
+
+# convert back to geometry
+#cc2 = st_as_sf(cc2, coords = c("lon", "lat"), 
+    #crs = 4326, agr = "constant")
+```
+
+```{r, eval=FALSE, include = FALSE}
+# walker method: https://walker-data.com/census-r/mapping-census-data-with-r.html
+
+tidycensus::census_api_key("b29f6f0f27ec15566c27f4c9eadef923be9f7373", install = TRUE, overwrite = TRUE)
+
+or_income <- get_acs(
+  geography = "tract", 
+  variables = "B19013_001",
+  state = "OR", 
+  year = 2020,
+  geometry = TRUE
+)
+
+# create new dataset with just washington county
+wa_co_income = filter(or_income, grepl('Washington County, Oregon', NAME))
+
+# get city level points 
+or_city <- get_acs(
+  geography = "city", 
+  variables = "B19013_001",
+  state = "OR", 
+  year = 2020,
+  geometry = TRUE
+)
+
+mult_co_income = filter(or_income, grepl('Multnomah County, Oregon', NAME))
+
+```
+
+```{r, eval=FALSE, include = FALSE}
+    
+plot(wa_co_income["estimate"])
+plot(mult_co_income["estimate"])
+
+ggplot() + 
+  geom_sf(data = wa_co_income, aes(fill = estimate), color = "white") +
+  scale_fill_gradient(name = "Median Income", low = "grey37", high = "grey84" ) +
+  geom_sf(data = cc, mapping = aes(color = provider_type), size = 1) +
+  scale_color_discrete(name = "Provider Type") +
+ geom_sf(data = cities2, color = "purple", size = 3) +
+  #geom_text(data = cities1, aes(x = lon, y = lat, label = city), size = 5) +
+    coord_sf(ylim = c(45.4, 45.6), xlim = c(-123.2, -122.8), expand = FALSE)
+```
+
+```{r, eval=FALSE, include = FALSE}
+oregon = 
+  get_acs(
+    geography = "county", variables = "B19013_001",
+    state = "OR", geometry = TRUE
+    ) 
+
+col_pal = colorQuantile(palette = "viridis", domain = oregon$estimate, n = 10)
+
+oregon %>%
+  mutate(county = gsub(",.*", "", NAME)) %>% ## Get rid of everything after the first comma
+  st_transform(crs = 4326) %>%
+  leaflet(width = "100%") %>%
+  addProviderTiles(provider = "CartoDB.Positron") %>%
+  addPolygons(
+    popup = ~paste0(county, "<br>", "Income: ", prettyNum(estimate, big.mark=",")),
+    stroke = FALSE,
+    smoothFactor = 0,
+    fillOpacity = 0.7,
+    color = ~col_pal(estimate)
+    ) %>%
+  addLegend(
+    "bottomright", 
+    pal = col_pal, 
+    values = ~estimate,
+    title = "Income percentiles",
+    opacity = 1
+    )
+
+```
+#### The map below shows the location of the provider type overlayed onto median income by census tract
+```{r, echo = FALSE, message = FALSE}
+options(tigris_use_cache = TRUE)
+washington_co = 
+  get_acs(
+    geography = "tract", variables = "B19013_001", 
+    state = "OR", county = "Washington County", geometry = TRUE
+    )
+
+wa_pal = colorNumeric(palette = "viridis", domain = washington_co$estimate)
+
+lic_pal = colorFactor(
+  palette  = "Accent", 
+  domain = cc2$provider_type)
+
+washington_co = washington_co %>%
+  mutate(tract = gsub(",.*", "", NAME)) %>% ## Get rid of everything after the first comma
+  st_transform(crs = 4326)
+ 
+  leaflet(width = "100%") %>%
+  addProviderTiles(provider = "CartoDB.Positron") %>%
+  addPolygons(
+    data  =  washington_co, 
+    # popup = ~tract,
+    popup = ~paste0(tract, "<br>", "Median value: $", prettyNum(estimate, big.mark=",")),
+    stroke = FALSE,
+    smoothFactor = 0,
+    fillOpacity = 0.6,
+    color = ~wa_pal(estimate)
+    ) %>%
+  addLegend(
+    data = washington_co, 
+    "bottomright", 
+    pal = wa_pal, 
+    values = ~estimate,
+    title = "Median Income<br>Washington County, OR",
+    labFormat = labelFormat(prefix = "$"),
+    opacity = 1
+    ) %>%
+  addCircleMarkers(
+    data  = cc2, 
+    lng = ~lon, lat = ~lat,
+    popup = ~provider_type, 
+    radius =  3,
+    fillOpacity = 1, 
+    stroke = FALSE, 
+    color = ~lic_pal(provider_type)) %>%
+    addLegend(
+    data = cc2, 
+    "bottomleft", 
+    pal = lic_pal, 
+    values = ~provider_type,
+    title = "Provider Types",
+    #labFormat = labelFormat(prefix = "$"),
+    )
+  
+```
