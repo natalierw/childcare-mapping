@@ -3,8 +3,8 @@ title: "Childcare Mapping"
 author: "Natalie Walker"
 date: "5/10/2022"
 output: 
-  md_document
-  html_document
+  md_document: default 
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
