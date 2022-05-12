@@ -2,9 +2,7 @@
 title: "Childcare Mapping"
 author: "Natalie Walker"
 date: "5/10/2022"
-output: 
-  md_document
-  html_document
+output: html_document
 ---
 
 ```{r setup, include=FALSE}

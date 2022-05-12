@@ -1,1 +1,2 @@
-# childcare-mapping
+# Mapping Childcare Providers
+The map overlays childcare providers in Hillsboro, Cornelius, and Aloha with median household income by census tract in order to better distribute of grants to eligible childcare providers.
